@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 - 2026-10-30
+
+- Clipped the app icon to the Dock squircle so it matches the other apps.
+
 ## 0.1.4 - 2026-10-30
 
 - Gave the macOS app the menu-bar feather as its icon and installed it as

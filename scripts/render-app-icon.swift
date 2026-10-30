@@ -50,6 +50,48 @@ func render(stroke: String) -> NSImage {
     return image
 }
 
+/// Alpha silhouette shared by the other Dock icons. Taken from a system app
+/// icon, which macOS already clips to the squircle, with the artwork removed.
+func systemSquircleMask() -> NSImage {
+    let icon = NSWorkspace.shared.icon(forFile: "/System/Applications/Notes.app")
+    guard
+        let source = icon.representations.max(by: { $0.pixelsWide < $1.pixelsWide })
+    else {
+        fputs("could not read the system icon shape\n", stderr)
+        exit(1)
+    }
+    var rect = NSRect(x: 0, y: 0, width: source.pixelsWide, height: source.pixelsHigh)
+    guard let cg = source.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
+        fputs("could not read the system icon shape\n", stderr)
+        exit(1)
+    }
+    let width = cg.width
+    let height = cg.height
+    guard
+        let ctx = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+    else {
+        fputs("could not allocate the icon mask\n", stderr)
+        exit(1)
+    }
+    let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+    ctx.clip(to: bounds, mask: cg)
+    ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+    ctx.fill(bounds)
+    guard let masked = ctx.makeImage() else {
+        fputs("could not build the icon mask\n", stderr)
+        exit(1)
+    }
+    return NSImage(cgImage: masked, size: NSSize(width: canvas, height: canvas))
+}
+
 func png(_ image: NSImage, background: NSColor, to url: URL) {
     guard
         let rep = NSBitmapImageRep(
@@ -71,14 +113,11 @@ func png(_ image: NSImage, background: NSColor, to url: URL) {
     rep.size = NSSize(width: canvas, height: canvas)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let bounds = NSRect(x: 0, y: 0, width: canvas, height: canvas)
     background.setFill()
-    NSBezierPath(rect: NSRect(x: 0, y: 0, width: canvas, height: canvas)).fill()
-    image.draw(
-        in: NSRect(x: 0, y: 0, width: canvas, height: canvas),
-        from: .zero,
-        operation: .sourceOver,
-        fraction: 1
-    )
+    bounds.fill()
+    image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
+    systemSquircleMask().draw(in: bounds, from: .zero, operation: .destinationIn, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     guard let data = rep.representation(using: .png, properties: [:]) else {
         fputs("could not encode \(url.path)\n", stderr)
