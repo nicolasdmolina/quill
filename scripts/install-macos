@@ -1,17 +1,91 @@
 #!/bin/sh
+# Install the release binary as /Applications/Quill.app so Finder and Launchpad
+# show the feather, and point the `quill` command at that app.
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(dirname -- "$script_dir")
-install_dir=${QUILL_INSTALL_DIR:-/usr/local/bin}
 binary="$repo_root/macos/.build/release/quill"
+resources="$repo_root/macos/Resources"
+app_dest=${QUILL_APP_DIR:-/Applications}/Quill.app
 
 if [ ! -x "$binary" ]; then
     printf 'release binary not found; run ./scripts/build-macos first\n' >&2
     exit 1
 fi
+if [ ! -f "$resources/AppIcon.icns" ]; then
+    printf 'AppIcon.icns missing; run ./scripts/render-app-icon first\n' >&2
+    exit 1
+fi
 
-install -d "$install_dir"
-install -m 755 "$binary" "$install_dir/quill"
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
 
-printf 'installed quill to %s/quill\n' "$install_dir"
+app="$stage/Quill.app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp "$binary" "$app/Contents/MacOS/Quill"
+chmod 755 "$app/Contents/MacOS/Quill"
+cp "$resources/AppInfo.plist" "$app/Contents/Info.plist"
+cp "$resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
+if [ -d "$resources/Assets.car" ] || [ -f "$resources/Assets.car" ]; then
+    cp "$resources/Assets.car" "$app/Contents/Resources/Assets.car"
+fi
+printf 'APPL????' > "$app/Contents/PkgInfo"
+
+# Ad-hoc sign the bundle. The binary's cdhash changes on every rebuild, so
+# macOS will ask again for the microphone and system audio.
+codesign --force --sign - "$app" >/dev/null
+
+parent=$(dirname -- "$app_dest")
+if [ ! -w "$parent" ]; then
+    printf 'cannot write %s\n' "$parent" >&2
+    exit 1
+fi
+rm -rf "$app_dest"
+mv "$app" "$app_dest"
+trap - EXIT
+rm -rf "$stage"
+
+link_cli() {
+    dest=$1
+    dir=$(dirname -- "$dest")
+    mkdir -p "$dir"
+    if [ -w "$dir" ]; then
+        ln -sfn "$app_dest/Contents/MacOS/Quill" "$dest"
+        printf 'cli → %s\n' "$dest"
+    fi
+}
+
+if [ -n "${QUILL_INSTALL_DIR:-}" ]; then
+    link_cli "$QUILL_INSTALL_DIR/quill"
+else
+    link_cli "$HOME/.local/bin/quill"
+    if [ -w /usr/local/bin ]; then
+        link_cli /usr/local/bin/quill
+    fi
+fi
+
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+if [ -x "$lsregister" ]; then
+    "$lsregister" -f "$app_dest" || true
+fi
+
+# IconServices and the Dock do not share a cache. The Dock keeps the previous
+# tile in com.apple.dock.iconcache until that file is removed and the Dock
+# is restarted, otherwise a replaced icon stays the old tile.
+dock_cache="$(getconf DARWIN_USER_CACHE_DIR)/com.apple.dock.iconcache"
+rm -rf "$dock_cache"
+killall Dock 2>/dev/null || true
+
+# The LaunchAgent must exec the app binary itself. A symlink outside the
+# bundle fails the ad-hoc signature, and a stale job keeps the previous binary.
+agent="$HOME/Library/LaunchAgents/com.digimata.quill.plist"
+if [ -f "$agent" ]; then
+    uid=$(id -u)
+    launchctl bootout "gui/$uid/com.digimata.quill" 2>/dev/null || true
+    if ! launchctl bootstrap "gui/$uid" "$agent"; then
+        printf 'installed the app, but the login agent did not start\n' >&2
+    fi
+fi
+
+printf 'installed %s\n' "$app_dest"

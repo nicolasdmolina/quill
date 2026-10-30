@@ -5,15 +5,16 @@ click records your mic and all system audio as two separate tracks; when you
 stop, quill transcribes both on-device and writes a speaker-tagged transcript.
 Nothing ever leaves the machine.
 
-The macOS implementation is a single Swift binary with a menu-bar tray and no
-app bundle.
+The macOS implementation is a Swift binary with a menu-bar tray. Install
+wraps it in Quill.app, using the same feather as the menu bar, so it shows up
+in Applications and Launchpad.
 
 ## Install
 
 ```sh
 cd quill
 ./scripts/build-macos
-sudo ./scripts/install-macos
+./scripts/install-macos
 quill install --launch-at-login   # optional — runs in the background on login
 ```
 
@@ -30,7 +31,7 @@ transcription speed.
 
 ## How to use
 
-1. **Run it** (`quill` in a terminal, or the LaunchAgent).
+1. **Run it** (open Quill from Applications, `quill` in a terminal, or the LaunchAgent).
 2. **Click the feather in the menu bar → Start recording.** First use prompts
    for microphone and System Audio Recording permissions. While recording, the
    icon turns red with a running elapsed counter, and macOS shows the purple
