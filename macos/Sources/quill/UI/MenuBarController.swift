@@ -124,9 +124,9 @@ final class MenuBarController {
         transcriptionLabel.isHidden = text == nil
     }
 
-    // Inlined Lucide feather SVG. Keeping it in source means the executable
-    // has no separate resource bundle to install alongside it — true
-    // single-binary.
+    // Inlined Lucide feather SVG. Same paths as macos/Resources/feather.svg,
+    // which the Applications icon is rendered from. Keeping it in source means
+    // the executable has no separate resource bundle to install alongside it.
     private static let featherSVG = """
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" \
         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" \

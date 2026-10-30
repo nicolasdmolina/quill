@@ -1,0 +1,86 @@
+#!/bin/sh
+# Render the menu-bar feather into AppIcon.icns and Assets.car.
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(dirname -- "$script_dir")
+set_dir="$repo_root/macos/Resources/Assets.xcassets/AppIcon.appiconset"
+
+swiftc -framework AppKit -o /tmp/quill-render-app-icon "$script_dir/render-app-icon.swift"
+/tmp/quill-render-app-icon "$repo_root"
+
+masters=$(mktemp -d)
+mv "$set_dir/AppIcon-dark.png" "$masters/dark.png"
+rm -f "$set_dir/AppIcon-light.png"
+dark="$masters/dark.png"
+rm -f "$set_dir"/icon_*.png "$set_dir"/AppIcon-*.png
+
+# actool on this SDK drops macOS app-icon luminosity variants, so the shipped
+# icon is the Dark Mode menu-bar feather: light mark on a dark plate.
+write_slot() {
+    size=$1
+    pixels=$2
+    suffix=$3
+    sips -z "$pixels" "$pixels" "$dark" --out "$set_dir/icon_${size}${suffix}.png" >/dev/null
+}
+
+write_slot 16x16 16 ""
+write_slot 16x16 32 "@2x"
+write_slot 32x32 32 ""
+write_slot 32x32 64 "@2x"
+write_slot 128x128 128 ""
+write_slot 128x128 256 "@2x"
+write_slot 256x256 256 ""
+write_slot 256x256 512 "@2x"
+write_slot 512x512 512 ""
+write_slot 512x512 1024 "@2x"
+
+python3 - "$set_dir/Contents.json" <<'PY'
+import json, sys
+slots = [
+    ("16x16", "1x", ""),
+    ("16x16", "2x", "@2x"),
+    ("32x32", "1x", ""),
+    ("32x32", "2x", "@2x"),
+    ("128x128", "1x", ""),
+    ("128x128", "2x", "@2x"),
+    ("256x256", "1x", ""),
+    ("256x256", "2x", "@2x"),
+    ("512x512", "1x", ""),
+    ("512x512", "2x", "@2x"),
+]
+images = []
+for size, scale, suffix in slots:
+    images.append({
+        "filename": f"icon_{size}{suffix}.png",
+        "idiom": "mac",
+        "scale": scale,
+        "size": size,
+    })
+doc = {"images": images, "info": {"author": "xcode", "version": 1}}
+with open(sys.argv[1], "w") as f:
+    json.dump(doc, f, indent=2)
+    f.write("\n")
+PY
+
+iconset=$(mktemp -d)/AppIcon.iconset
+mkdir -p "$iconset"
+for spec in 16 32 128 256 512; do
+    cp "$set_dir/icon_${spec}x${spec}.png" "$iconset/icon_${spec}x${spec}.png"
+    cp "$set_dir/icon_${spec}x${spec}@2x.png" "$iconset/icon_${spec}x${spec}@2x.png"
+done
+iconutil -c icns "$iconset" -o "$repo_root/macos/Resources/AppIcon.icns"
+
+compiled=$(mktemp -d)
+xcrun actool \
+    "$repo_root/macos/Resources/Assets.xcassets" \
+    --compile "$compiled" \
+    --platform macosx \
+    --minimum-deployment-target 15.0 \
+    --app-icon AppIcon \
+    --output-partial-info-plist "$compiled/partial.plist" \
+    --warnings --errors
+cp "$compiled/Assets.car" "$repo_root/macos/Resources/Assets.car"
+
+printf 'wrote %s\n' "$repo_root/macos/Resources/AppIcon.icns"
+printf 'wrote %s\n' "$repo_root/macos/Resources/Assets.car"

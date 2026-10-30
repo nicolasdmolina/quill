@@ -8,7 +8,7 @@ A fully local meeting recorder and transcriber. Quill records your mic and the c
 
 ```sh
 ./scripts/build-macos
-sudo ./scripts/install-macos
+./scripts/install-macos
 quill install --launch-at-login   # optional
 ```
 

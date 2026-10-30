@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-10-30
+
+- Gave the macOS app the menu-bar feather as its icon and installed it as
+  Quill.app so it can be opened from Applications and Launchpad. The mark is
+  the light feather the menu bar uses in Dark Mode, on a dark plate.
+- Opening Quill while it is already running leaves the existing menu-bar item
+  in place instead of starting a second one.
+
 ## 0.1.3 - 2026-08-04
 
 - Fixed macOS route changes silently truncating capture: both tracks now have

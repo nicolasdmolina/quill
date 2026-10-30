@@ -1,6 +1,32 @@
 import AppKit
 import ArgumentParser
+import Darwin
 import Foundation
+
+/// Held open for the life of the process. A second click in Launchpad or
+/// Applications must not start another menu-bar feather beside the one
+/// already running.
+@MainActor
+private var quillInstanceLockFD: Int32 = -1
+
+@MainActor
+private func acquireQuillInstanceLock() -> Bool {
+    let directory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/quill", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    } catch {
+        return true
+    }
+    let fd = open(directory.appendingPathComponent("instance.lock").path, O_CREAT | O_RDWR, 0o644)
+    if fd < 0 { return true }
+    if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+        close(fd)
+        return false
+    }
+    quillInstanceLockFD = fd
+    return true
+}
 
 @main
 struct Quill: ParsableCommand {
@@ -29,6 +55,11 @@ struct Run: ParsableCommand {
 
     @MainActor
     private func runMain() throws {
+        if !acquireQuillInstanceLock() {
+            FileHandle.standardError.write(Data("quill is already running\n".utf8))
+            return
+        }
+
         let root = Config.resolveRoot(cliOverride: out)
 
         // Non-blocking: permissions prompt on first recording, so warnings at
