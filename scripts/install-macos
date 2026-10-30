@@ -70,6 +70,13 @@ if [ -x "$lsregister" ]; then
     "$lsregister" -f "$app_dest" || true
 fi
 
+# IconServices and the Dock do not share a cache. The Dock keeps the previous
+# tile in com.apple.dock.iconcache until that file is removed and the Dock
+# is restarted, otherwise a replaced icon stays the old tile.
+dock_cache="$(getconf DARWIN_USER_CACHE_DIR)/com.apple.dock.iconcache"
+rm -rf "$dock_cache"
+killall Dock 2>/dev/null || true
+
 # The LaunchAgent must exec the app binary itself. A symlink outside the
 # bundle fails the ad-hoc signature, and a stale job keeps the previous binary.
 agent="$HOME/Library/LaunchAgents/com.digimata.quill.plist"

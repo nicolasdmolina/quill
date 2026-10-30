@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 - 2026-10-30
+
+- The macOS installer clears the Dock's private icon cache, so a replaced
+  icon replaces the old tile instead of leaving the previous one in place.
+
 ## 0.1.5 - 2026-10-30
 
 - Clipped the app icon to the Dock squircle so it matches the other apps.
